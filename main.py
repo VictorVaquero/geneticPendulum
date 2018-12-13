@@ -2,6 +2,7 @@ from examples.graphics import *
 from math import *
 import numpy as np
 from pynput.mouse import Controller
+from datetime import datetime
 
 TITLE = "Prototipo"
 FILE = "best.txt"
@@ -36,8 +37,8 @@ DRAG = 0.99
 
 # Valores net neuronal
 SIZE = [6, 20,20,  1]
-LIMIT = 100000
-LIMIT_TRAIN = LIMIT // 1
+LIMIT = 10000
+LIMIT_TRAIN = LIMIT // 10
 MAX_FORCE = 600000
 NORM = [[WIN_X, pi,pi],[10,10,10]] # Normalizar entrada
 
@@ -49,7 +50,7 @@ MUTATE_PROB = 0.8 # Probabilidad de que ocurra una mutacion lineal
 MUTATE_LINEAL = 0.01 # Valor alrededor del cual se suma o resta
 MUTATE_CHANGE = 0.01 # Probabilidad de dar nuevo valor
 COMBINATION_PROB = 0.4 # Probabilidad de heredar parametros de primer padre
-LOSSER_KEEP = 5
+LOSSER_KEEP = 2
 OUT = 30 # Si pasan mas de x ciclos, se reinicia
 
 
@@ -226,9 +227,10 @@ def evaluate(net,limit,grf = False, win = None, end = True):
             #if limit / 10:
                 #print("u: {}".format(u[0][0]))
         _, tita1, tita2 = x[0]
-        punt += i #- (1-abs(u[0][0]))**2
-        if end and (L2*cos(tita2) < 0 or  L1*cos(tita1)) < 0:
+        punt = i #- (1-abs(u[0][0]))**2
+        if end and (L2*cos(tita2) < 0 or  L1*cos(tita1) < 0):
             break
+
 
     if grf:
         undraw(win,obj)
@@ -289,11 +291,12 @@ def reproduce(nets):
     return networks
 
     
-def train():
+def train(P,S,GEN):
+    print("Poblacion {} Supervivientes {} Generacion {}".format(P,S,GEN))
     win = GraphWin(TITLE,WIN_X,WIN_Y)
     win.yUp()
     networks = []
-    for p in range(POBLATION):
+    for p in range(P):
         net = Network(SIZE)
         net.initialize()
         networks.append(net)
@@ -302,21 +305,22 @@ def train():
     u = 0
 
     try:
-        for g in range(GENERATIONS):
+        for g in range(GEN):
             print("Generacion {}".format(g))
             puntuation = [evaluate(net,LIMIT_TRAIN) for net in networks]
             best = [x for _,x in sorted(zip(puntuation,networks), key = lambda t: t[0], reverse = True)]
             aux = []
-            aux.extend(best[:SURVIVORS])
+            aux.extend(best[:S])
             for i in range(LOSSER_KEEP):
-                r = np.random.uniform(SURVIVORS-1,len(best))
-                networks.append(best[floor(r)])
+                r = np.random.uniform(S-1,len(best))
+                aux.append(best[floor(r)])
 
-            networks = reproduce(best[:SURVIVORS])
+            networks = reproduce(aux)
+            networks.extend(aux)
 
             punt = evaluate(best[0], LIMIT, grf = True,win = win)
-            print(best[0].weights, best[0].bias)
-            print("Punts: {}".format(sorted(puntuation, reverse = True)[:SURVIVORS]))
+            #print(best[0].weights, best[0].bias)
+            print("Punts: {}".format(sorted(puntuation, reverse = True)[:S]))
             print("Puntuacion: {}".format(punt))
 
             if max_punt < punt:
@@ -327,17 +331,19 @@ def train():
                 u += 1
             if u == OUT:
                 nets = []
-                for p in range(SURVIVORS//3,POBLATION):
+                for p in range(S//3,P):
                     net = Network(SIZE)
                     net.initialize()
                     nets.append(net)
-                for o in range(SURVIVORS//3):
-                    r = np.random.uniform(0,SURVIVORS-1)
+                for o in range(S//3):
+                    r = np.random.uniform(0,S-1)
                     nets.append(best[floor(r)])
                 nets.extend(best[:2])
                 networks = nets
                 u = 0
                 print("-------OUT-------")
+            if max_punt >= LIMIT-1:
+                break
     except KeyboardInterrupt:
         f = open(FILE,"w")
         f.write(str(best_net))
@@ -347,18 +353,27 @@ def train():
 
 
     win.close()
+    return g
 
 
 # ------------------------------- Main -------------------
 
-win = GraphWin(TITLE,WIN_X,WIN_Y)
-win.yUp()
 
-play(win)
+P =  POBLATION
+S = SURVIVORS
+GEN = GENERATIONS
 
-#check(y,yp,u)
+#data = []
+#for p in [10,50,100,500,1000]:
+#    time = datetime.now().microsecond
+#    try:
+#        aux = train(p,floor(0.1*p),GEN)
+#    except KeyboardInterrupt:
+#        aux = None
+#    data.append((p,aux,time-datetime.now().microsecond))
+#print(data)
 
-#train()
+##train(P,S,GEN)
 
 
 weights = [np.array([[ 6.34486436e-01,  5.15911415e-02, -1.38858399e-02,
@@ -585,6 +600,13 @@ bias = [np.array([[ 0.08442869],
 net = Network(SIZE) 
 net.weights = weights
 net.bias = bias
-evaluate(net, LIMIT, True, win,end = False)
+
+win = GraphWin(TITLE,WIN_X,WIN_Y)
+win.yUp()
+
+#play(win)
+
+#check(y,yp,u)
+evaluate(net, LIMIT*10000, True, win,end = False)
 
 win.close()
